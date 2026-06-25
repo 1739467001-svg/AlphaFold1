@@ -1,0 +1,69 @@
+name: AlphaFold 每日进展摘要
+
+# 每天北京时间 10:11 自动运行（GitHub 调度用 UTC；02:11 UTC = 10:11 UTC+8）。
+# 说明：
+#  1) 定时(schedule)触发只在仓库【默认分支】上生效——需先把本工作流合并到默认分支(如 main)。
+#  2) 需要在 仓库 Settings → Secrets and variables → Actions 添加 Secret：ANTHROPIC_API_KEY。
+#  3) 可选：添加 Variable ANTHROPIC_MODEL 覆盖默认模型（默认 claude-sonnet-4-6）。
+#  4) GitHub 定时任务在高峰期可能延迟数分钟，属正常现象。
+
+on:
+  schedule:
+    - cron: "11 2 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "指定日期 YYYY-MM-DD（留空=今天，北京时区）"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: alphafold-daily
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 安装系统依赖（WeasyPrint 渲染 + 中文字体）
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b \
+            fonts-wqy-zenhei fontconfig
+          fc-cache -f
+
+      - name: 安装 Python 依赖
+        run: pip install --quiet --upgrade anthropic weasyprint markdown pygments
+
+      - name: 生成每日摘要（Claude + 联网搜索）
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+        run: |
+          python3 scripts/daily_digest.py ${{ github.event.inputs.date && format('--date {0}', github.event.inputs.date) || '' }}
+
+      - name: 提交并推送结果
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain daily/)" ]; then
+            D=$(TZ='Asia/Shanghai' date +%F)
+            git add daily/
+            git commit -m "chore(daily): AlphaFold 每日进展摘要 ${D}"
+            git push
+            echo "已提交 ${D} 的每日摘要。"
+          else
+            echo "无变更，跳过提交。"
+          fi

@@ -22,8 +22,13 @@ AlphaFold1/
 │   ├── AlphaFold2_Jumper2021_Nature_开放获取原文.md
 │   └── AlphaFold3_Abramson2024_Nature_开放获取原文.md
 ├── pdf/                       # 渲染输出（每篇一个 PDF + 合订本）
-└── tools/
-    └── build_pdf.py           # Markdown → PDF 渲染脚本（weasyprint，支持中文）
+├── tools/
+│   └── build_pdf.py           # Markdown → PDF 渲染脚本（weasyprint，支持中文）
+├── scripts/
+│   └── daily_digest.py        # 每日进展摘要生成器（Claude 联网搜索）
+├── daily/                     # 🔄 每日自动更新的进展摘要（MD+PDF）+ 分类索引
+└── .github/workflows/
+    └── alphafold-daily.yml    # 每天 10:11(北京时间) 定时任务
 ```
 
 ## 📖 文档导读
@@ -80,3 +85,11 @@ python3 tools/build_pdf.py docs/01-总览与时间线.md
 - **AlphaFold3（2024-05）** 用 **Pairformer + 扩散模块** 把预测从单链扩展到蛋白质–核酸–配体–离子复合物。
 - **2024 诺贝尔化学奖**授予 David Baker、Demis Hassabis、John Jumper。
 - 2024–2026 涌现一批**开源、商用友好**的对标模型（Boltz、Chai、Protenix、OpenFold3 等），正面回应 AF3 的非商业限制。
+
+## 🔄 每日自动更新（daily/）
+
+仓库内置一个**每天自动跑**的定时任务：每天**北京时间 10:11** 由 GitHub Actions 触发，用 Claude + 联网搜索抓取 AlphaFold / 蛋白质结构预测领域的**最新进展**，按【新论文 / 产业新闻 / 模型发布 / 综述与评论 / 其他动态】分类，沉淀为 `daily/<年>/<日期>.md` + PDF，并自动更新 `daily/INDEX.md` 索引、自动提交回仓库。
+
+- 工作流：`.github/workflows/alphafold-daily.yml`　·　生成脚本：`scripts/daily_digest.py`
+- **启用两步**：① 在仓库 `Settings → Secrets and variables → Actions` 添加 Secret `ANTHROPIC_API_KEY`；② 把工作流合并到**默认分支**（GitHub 定时任务仅在默认分支生效）。
+- 详见 [`daily/README.md`](daily/README.md)（含手动触发、本地测试、成本说明）。
