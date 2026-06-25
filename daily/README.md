@@ -28,10 +28,29 @@ daily/
 ## ⚙️ 启用前的两步设置（必做）
 
 1. **添加 API 密钥**：仓库 `Settings → Secrets and variables → Actions → New repository secret`，
-   名称 `ANTHROPIC_API_KEY`，值为你的 Anthropic API Key。
-   （可选）再加一个 *Variable* `ANTHROPIC_MODEL` 覆盖默认模型（默认 `claude-sonnet-4-6`）。
+   名称 **`LLM_API_KEY`**，值为你所选模型服务的 API Key。具体提供方配置见下文「选择模型提供方」。
 2. **合并到默认分支**：GitHub 的 `schedule` 定时触发**只在默认分支（通常 `main`）上生效**。
    请把本工作流所在改动合并到默认分支后，定时任务才会每天自动跑。
+
+## 选择模型提供方（Claude / 阿里云通义千问）
+
+脚本支持两种后端，在 `Settings → Secrets and variables → Actions` 配置：
+
+**A. Anthropic Claude（默认）**
+- Secret：`LLM_API_KEY` = 你的 Anthropic API Key
+- Variable（可选）：`LLM_MODEL` = `claude-sonnet-4-6`（默认）
+
+**B. 阿里云通义千问 Qwen / DashScope（OpenAI 兼容 + 联网搜索）**
+- Secret：`LLM_API_KEY` = 你的阿里云 DashScope API Key（`sk-...`）
+- Variable：`LLM_PROVIDER` = `dashscope`
+- Variable（可选）：`LLM_MODEL` = `qwen-plus`（默认；也可 `qwen-max` 等）
+- Variable（可选）：`LLM_BASE_URL` = `https://dashscope.aliyuncs.com/compatible-mode/v1`（默认；海外可用 `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`）
+- 说明：脚本用 OpenAI 兼容接口 + `enable_search` 让 Qwen 联网检索；需开通[阿里云百炼](https://bailian.console.aliyun.com/)且所选模型支持联网搜索。
+
+> 本地运行同理，把上述 `LLM_*` 设为环境变量即可：
+> ```bash
+> LLM_PROVIDER=dashscope LLM_API_KEY=sk-... python3 scripts/daily_digest.py
+> ```
 
 ## 手动触发 / 本地测试
 

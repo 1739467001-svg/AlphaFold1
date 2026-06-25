@@ -72,32 +72,74 @@ RoseTTAFold、Protenix、OpenFold、Isomorphic Labs、de novo protein design、C
 }"""
 
 
+SYSTEM_PROMPT = "你只依据检索到的可靠来源作答，绝不编造来源或数据。"
+
+
+def provider() -> str:
+    """模型提供方：anthropic（默认）| dashscope/openai（阿里云通义千问等 OpenAI 兼容服务）。"""
+    return os.environ.get("LLM_PROVIDER", "anthropic").strip().lower()
+
+
+def api_key() -> str | None:
+    return (
+        os.environ.get("LLM_API_KEY")
+        or os.environ.get("ANTHROPIC_API_KEY")
+        or os.environ.get("DASHSCOPE_API_KEY")
+    )
+
+
 def run_research(date_str: str) -> str:
+    prompt = PROMPT.replace("__DATE__", date_str).replace("__CATEGORIES__", "、".join(CATEGORIES))
+    if provider() in ("anthropic", "claude"):
+        return _research_anthropic(prompt)
+    return _research_openai_compatible(prompt)
+
+
+def _research_anthropic(prompt: str) -> str:
+    """Anthropic Claude + 服务端 web_search 工具。"""
     import anthropic
 
-    client = anthropic.Anthropic()  # 读取 ANTHROPIC_API_KEY
-    model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+    client = anthropic.Anthropic(api_key=api_key())
+    model = os.environ.get("LLM_MODEL") or os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
     tool_version = os.environ.get("WEB_SEARCH_TOOL_VERSION", "web_search_20250305")
-
-    prompt = PROMPT.replace("__DATE__", date_str).replace("__CATEGORIES__", "、".join(CATEGORIES))
     messages = [{"role": "user", "content": prompt}]
     tools = [{"type": tool_version, "name": "web_search", "max_uses": 8}]
 
-    # 服务端工具可能返回 pause_turn，需要回喂续跑
-    for _ in range(6):
+    resp = None
+    for _ in range(6):  # 服务端工具可能返回 pause_turn，需要回喂续跑
         resp = client.messages.create(
-            model=model,
-            max_tokens=8192,
-            system="你只依据检索到的可靠来源作答，绝不编造来源或数据。",
-            tools=tools,
-            messages=messages,
+            model=model, max_tokens=8192, system=SYSTEM_PROMPT, tools=tools, messages=messages
         )
         if resp.stop_reason == "pause_turn":
             messages.append({"role": "assistant", "content": resp.content})
             continue
         break
-
     return "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", None) == "text")
+
+
+def _research_openai_compatible(prompt: str) -> str:
+    """OpenAI 兼容服务（阿里云 DashScope / 通义千问 Qwen 等）+ 联网搜索。
+
+    阿里云通过 extra_body={"enable_search": True} 开启联网检索；forced_search 强制每次都搜。
+    """
+    from openai import OpenAI
+
+    base_url = os.environ.get("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+    model = os.environ.get("LLM_MODEL", "qwen-plus")
+    client = OpenAI(api_key=api_key(), base_url=base_url)
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": prompt},
+    ]
+    kwargs = dict(model=model, messages=messages, max_tokens=8192, temperature=0.3)
+    try:
+        resp = client.chat.completions.create(
+            **kwargs, extra_body={"enable_search": True, "search_options": {"forced_search": True}}
+        )
+    except Exception as e:  # 个别模型/版本不认 search_options，退化为仅 enable_search
+        print(f"[daily_digest] 联网搜索参数降级（{type(e).__name__}）", file=sys.stderr)
+        resp = client.chat.completions.create(**kwargs, extra_body={"enable_search": True})
+    return resp.choices[0].message.content or ""
 
 
 def parse_json(text: str):
@@ -267,10 +309,10 @@ def main(argv=None):
         print("[daily_digest] dry-run：使用示例数据，不调用 API。")
         data = dict(SAMPLE, date=date_str)
     else:
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            print("错误：缺少 ANTHROPIC_API_KEY。", file=sys.stderr)
+        if not api_key():
+            print("错误：缺少 API key（LLM_API_KEY / ANTHROPIC_API_KEY / DASHSCOPE_API_KEY）。", file=sys.stderr)
             return 2
-        print("[daily_digest] 调用 Claude + 联网搜索 …")
+        print(f"[daily_digest] provider={provider()} model={os.environ.get('LLM_MODEL') or '(默认)'} 联网搜索中 …")
         raw = run_research(date_str)
         data = parse_json(raw)
         if data is None:
