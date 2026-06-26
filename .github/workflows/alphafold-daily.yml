@@ -72,3 +72,30 @@ jobs:
           else
             echo "无变更，跳过提交。"
           fi
+
+      - name: 计算当日文件路径（邮件附件用）
+        run: |
+          D="${{ github.event.inputs.date }}"
+          [ -z "$D" ] && D=$(TZ='Asia/Shanghai' date +%F)
+          Y=${D%%-*}
+          echo "DIGEST_DATE=$D" >> "$GITHUB_ENV"
+          echo "DIGEST_MD=daily/$Y/$D.md" >> "$GITHUB_ENV"
+          echo "DIGEST_PDF=daily/$Y/$D.pdf" >> "$GITHUB_ENV"
+
+      - name: 发送到邮箱（可选；需 MAIL_ENABLED=true 且配置 MAIL_* ）
+        if: ${{ success() && vars.MAIL_ENABLED == 'true' && hashFiles(env.DIGEST_MD) != '' }}
+        continue-on-error: true
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ vars.MAIL_SERVER || 'smtp.qq.com' }}
+          server_port: ${{ vars.MAIL_PORT || '465' }}
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          from: AlphaFold 日报 <${{ secrets.MAIL_USERNAME }}>
+          to: ${{ vars.MAIL_TO || secrets.MAIL_USERNAME }}
+          subject: AlphaFold 每日进展 · ${{ env.DIGEST_DATE }}
+          body: |
+            今日 AlphaFold / 蛋白质结构预测进展摘要见附件（Markdown + PDF）。
+            本邮件由 GitHub Actions 自动发送。
+          attachments: ${{ env.DIGEST_MD }},${{ env.DIGEST_PDF }}

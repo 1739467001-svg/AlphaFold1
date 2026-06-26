@@ -67,6 +67,24 @@ daily/
   python3 scripts/daily_digest.py            # 今天（北京时区）
   ```
 
+## 自动发送到邮箱（可选）
+
+每天生成日报后，可自动把当天的 `.md` + `.pdf` 作为附件发到你的邮箱（默认 QQ 邮箱 SMTP）。
+在 `Settings → Secrets and variables → Actions` 配置：
+
+| 类型 | 名称 | 值 |
+|------|------|-----|
+| Variable | `MAIL_ENABLED` | `true`（总开关，不设或非 true 则不发信） |
+| Secret | `MAIL_USERNAME` | 你的邮箱地址，如 `2975982783@qq.com` |
+| Secret | `MAIL_PASSWORD` | 邮箱 **SMTP 授权码**（不是登录密码） |
+| Variable（可选） | `MAIL_TO` | 收件人（默认发给自己 `MAIL_USERNAME`） |
+| Variable（可选） | `MAIL_SERVER` / `MAIL_PORT` | 默认 `smtp.qq.com` / `465`（SSL） |
+
+**获取 QQ 邮箱授权码**：登录 QQ 邮箱 → `设置 → 账户` → 开启 `IMAP/SMTP 服务` → 按提示生成
+**授权码**，填入 `MAIL_PASSWORD`。
+
+> 邮件步骤用 [`dawidd6/action-send-mail`](https://github.com/dawidd6/action-send-mail)；为供应链安全可把 `@v3` 替换为具体 commit SHA。邮件失败不会影响日报生成与提交（`continue-on-error`）。
+
 ## 成本与注意事项
 
 - 每天一次 API 调用（含联网搜索），用量很小；可通过 `ANTHROPIC_MODEL` 选更便宜/更强的模型权衡成本与质量。
