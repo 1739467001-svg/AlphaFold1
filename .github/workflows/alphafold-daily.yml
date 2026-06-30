@@ -1,6 +1,7 @@
 name: AlphaFold 每日进展摘要
 
-# 每天北京时间 10:11 自动运行（GitHub 调度用 UTC；02:11 UTC = 10:11 UTC+8）。
+# 【已停用每日定时】原计划每天北京时间 10:11 自动运行；当前仅保留手动触发(workflow_dispatch)。
+# 恢复方法：取消下方 on.schedule 两行的注释即可。
 # 说明：
 #  1) 定时(schedule)触发只在仓库【默认分支】上生效——需先把本工作流合并到默认分支(如 main)。
 #  2) 需要在 仓库 Settings → Secrets and variables → Actions 添加 Secret：ANTHROPIC_API_KEY。
@@ -8,8 +9,9 @@ name: AlphaFold 每日进展摘要
 #  4) GitHub 定时任务在高峰期可能延迟数分钟，属正常现象。
 
 on:
-  schedule:
-    - cron: "11 2 * * *"
+  # ⛔ 每日定时已停用（按用户要求关闭）。如需恢复：取消下面两行注释。
+  # schedule:
+  #   - cron: "11 2 * * *"
   workflow_dispatch:
     inputs:
       date:
